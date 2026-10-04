@@ -21011,6 +21011,30 @@ mod grid {
 
     #[cfg(feature = "grid")]
     #[test]
+    fn grid_minmax_maximise_tracks_frozen_at_limit__border_box_ltr() {
+        crate::run_xml_test("grid", "grid_minmax_maximise_tracks_frozen_at_limit__border_box_ltr");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_minmax_maximise_tracks_frozen_at_limit__content_box_ltr() {
+        crate::run_xml_test("grid", "grid_minmax_maximise_tracks_frozen_at_limit__content_box_ltr");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_minmax_maximise_tracks_frozen_at_limit__border_box_rtl() {
+        crate::run_xml_test("grid", "grid_minmax_maximise_tracks_frozen_at_limit__border_box_rtl");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_minmax_maximise_tracks_frozen_at_limit__content_box_rtl() {
+        crate::run_xml_test("grid", "grid_minmax_maximise_tracks_frozen_at_limit__content_box_rtl");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
     fn grid_minmax_min_content_1fr__border_box_ltr() {
         crate::run_xml_test("grid", "grid_minmax_min_content_1fr__border_box_ltr");
     }
