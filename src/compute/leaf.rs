@@ -15,6 +15,9 @@ use core::unreachable;
 
 /// Compute the size of a leaf node (node with no children)
 ///
+/// A definite `inputs.available_space` is treated as the space available to the node's border box:
+/// the caller is expected to have already subtracted the node's margins from it.
+///
 /// Note: [`LayoutOutput::depends_on_block_constraints`] is only set based on the node's `aspect_ratio` style. If the
 /// width returned by the measure function can depend on the height it is passed (for example a replaced element with
 /// an intrinsic aspect ratio) then the caller should set that field to `true` on the returned output.
@@ -31,7 +34,6 @@ where
 
     // Note: both horizontal and vertical percentage padding/borders are resolved against the container's inline size (i.e. width).
     // This is not a bug, but is how CSS is specified (see: https://developer.mozilla.org/en-US/docs/Web/CSS/padding#values)
-    let margin = style.margin().resolve_or_zero(parent_size.width, &resolve_calc_value);
     let padding = style.padding().resolve_or_zero(parent_size.width, &resolve_calc_value);
     let border = style.border().resolve_or_zero(parent_size.width, &resolve_calc_value);
     let padding_border = padding + border;
@@ -123,7 +125,6 @@ where
             .width
             .map(AvailableSpace::from)
             .unwrap_or(available_space.width)
-            .maybe_sub(margin.horizontal_axis_sum())
             .maybe_set(known_dimensions.width)
             .maybe_set(node_size.width)
             .map_definite_value(|size| {
@@ -133,7 +134,6 @@ where
             .height
             .map(AvailableSpace::from)
             .unwrap_or(available_space.height)
-            .maybe_sub(margin.vertical_axis_sum())
             .maybe_set(known_dimensions.height)
             .maybe_set(node_size.height)
             .map_definite_value(|size| {
