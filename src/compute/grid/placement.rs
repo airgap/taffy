@@ -139,6 +139,7 @@ pub(super) fn place_grid_items<'a, S, ChildIter>(
         });
 
     // 2. Place remaining children with definite secondary axis positions
+    let mut sparse_cursors = Vec::new();
     let mut idx = 0;
     children_iter()
         .map(map_child_style_to_origin_zero_placement)
@@ -156,6 +157,7 @@ pub(super) fn place_grid_items<'a, S, ChildIter>(
                 grid_auto_flow,
                 direction,
                 explicit_col_count,
+                &mut sparse_cursors,
             );
 
             record_grid_placement(
@@ -279,12 +281,16 @@ fn place_definite_grid_item(
 
 /// 8.5. Grid Item Placement Algorithm
 /// Step 2. Place remaining children with definite secondary axis positions
+///
+/// `sparse_cursors` maps a secondary axis start line to the primary axis position just past the last item that this
+/// step placed with that start line.
 fn place_definite_secondary_axis_item(
     cell_occupancy_matrix: &CellOccupancyMatrix,
     placement: InBothAbsAxis<Line<OriginZeroGridPlacement>>,
     auto_flow: GridAutoFlow,
     direction: Direction,
     explicit_col_count: u16,
+    sparse_cursors: &mut Vec<(OriginZeroLine, OriginZeroLine)>,
 ) -> (Line<OriginZeroLine>, Line<OriginZeroLine>) {
     let primary_axis = auto_flow.primary_axis();
     let secondary_axis = primary_axis.other_axis();
@@ -298,28 +304,15 @@ fn place_definite_secondary_axis_item(
         direction,
         explicit_col_count,
     );
-    let starting_position = match auto_flow.is_dense() {
-        true => search_start_line(primary_axis_grid_start_line, primary_axis_grid_end_line, primary_axis_is_reversed),
-        false => {
-            let lookup_result = if primary_axis_is_reversed {
-                cell_occupancy_matrix.first_of_type(
-                    primary_axis,
-                    secondary_axis_placement.start,
-                    CellOccupancyState::AutoPlaced,
-                )
-            } else {
-                cell_occupancy_matrix.last_of_type(
-                    primary_axis,
-                    secondary_axis_placement.start,
-                    CellOccupancyState::AutoPlaced,
-                )
-            };
-            lookup_result.unwrap_or(search_start_line(
-                primary_axis_grid_start_line,
-                primary_axis_grid_end_line,
-                primary_axis_is_reversed,
-            ))
-        }
+    // "Sparse" packing starts past any items previously placed in this row (column for column-flow) by this step.
+    // Items placed in an earlier row by this step do not count, even when they span into this row.
+    // https://www.w3.org/TR/css-grid-2/#auto-placement-algo
+    let cursor_index = sparse_cursors.iter().position(|(line, _)| *line == secondary_axis_placement.start);
+    let grid_start_position =
+        search_start_line(primary_axis_grid_start_line, primary_axis_grid_end_line, primary_axis_is_reversed);
+    let starting_position = match (auto_flow.is_dense(), cursor_index) {
+        (false, Some(index)) => sparse_cursors[index].1,
+        _ => grid_start_position,
     };
     let primary_axis_span = placement.get(primary_axis).indefinite_span();
 
@@ -335,6 +328,12 @@ fn place_definite_secondary_axis_item(
         );
 
         if does_fit {
+            let cursor =
+                if primary_axis_is_reversed { primary_axis_placement.start - 1 } else { primary_axis_placement.end };
+            match cursor_index {
+                Some(index) => sparse_cursors[index].1 = cursor,
+                None => sparse_cursors.push((secondary_axis_placement.start, cursor)),
+            }
             return (primary_axis_placement, secondary_axis_placement);
         } else {
             position = advance_position(position, primary_axis_is_reversed);
