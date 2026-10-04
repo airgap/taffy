@@ -118,9 +118,13 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         width: constrained_available_space
             .width
             .map_definite_value(|space| space - content_box_inset.horizontal_axis_sum()),
-        height: constrained_available_space
-            .height
-            .map_definite_value(|space| space - content_box_inset.vertical_axis_sum()),
+        // Browsers never size a grid container's block axis under a min-content constraint: its min-content block size
+        // is the block size that results from laying it out with an indefinite block size, which is represented here
+        // as AvailableSpace::MaxContent (see resolve_intrinsic_track_sizes).
+        height: match constrained_available_space.height {
+            AvailableSpace::Definite(space) => AvailableSpace::Definite(space - content_box_inset.vertical_axis_sum()),
+            AvailableSpace::MinContent | AvailableSpace::MaxContent => AvailableSpace::MaxContent,
+        },
     };
 
     let outer_node_size =

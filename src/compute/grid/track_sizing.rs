@@ -557,6 +557,13 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
 
     let axis_inner_node_size = inner_node_size.get(axis);
     let flex_factor_sum = axis_tracks.iter().map(|track| track.flex_factor()).sum::<f32>();
+
+    // Browsers never size the block axis of a grid container under a min- or max-content constraint: an indefinite
+    // block size is just the outcome of laying the grid out, and is passed to us as AvailableSpace::MaxContent. Applying
+    // the constraint rules there would grow tracks with an auto minimum (such as `0fr` rows) to their items' content
+    // size where Chrome keeps them at the items' minimum contributions.
+    let axis_may_be_content_constrained = axis == AbstractAxis::Inline;
+
     let mut item_sizer =
         IntrinsicSizeMeasurer { tree, other_axis_tracks, axis, inner_node_size, get_track_size_estimate };
 
@@ -598,7 +605,8 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
                             // (note that overflow:hidden counts as a scroll container), giving the automatic minimum size of scroll
                             // containers (zero) precedence over the min-content contributions.
                             AvailableSpace::MinContent | AvailableSpace::MaxContent
-                                if !item.overflow.get(axis).is_scroll_container() =>
+                                if axis_may_be_content_constrained
+                                    && !item.overflow.get(axis).is_scroll_container() =>
                             {
                                 let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
                                 let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
@@ -699,7 +707,7 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
             // a scroll container), giving the automatic minimum size of scroll containers (zero) precedence over the min-content contributions.
             let space = match axis_available_grid_space {
                 AvailableSpace::MinContent | AvailableSpace::MaxContent
-                    if !item.overflow.get(axis).is_scroll_container() =>
+                    if axis_may_be_content_constrained && !item.overflow.get(axis).is_scroll_container() =>
                 {
                     let axis_minimum_size = item_sizer.minimum_contribution(item, axis_tracks);
                     let axis_min_content_size = item_sizer.min_content_contribution(item, axis_tracks);
@@ -790,7 +798,7 @@ fn resolve_intrinsic_track_sizes<Tree: LayoutPartialTree>(
         // Define fit_content_limited_growth_limit function. This is passed to the distribute_space_up_to_limits
         // helper function, and is used to compute the limit to distribute up to for each track.
         // Wrapping the method on GridTrack is necessary in order to resolve percentage fit-content arguments.
-        if axis_available_grid_space == AvailableSpace::MaxContent {
+        if axis_may_be_content_constrained && axis_available_grid_space == AvailableSpace::MaxContent {
             /// Whether a track:
             ///   - has an Auto MIN track sizing function
             ///   - Does not have a MinContent MAX track sizing function
