@@ -459,8 +459,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         });
     }
 
-    let mut intrinsic_row_contribution_changed = false;
-
     if rerun_column_sizing {
         // Re-run track sizing algorithm for Inline axis
         track_sizing_algorithm(
@@ -490,7 +488,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
         if !rerun_row_sizing {
             // Note: every item must be visited (no short-circuiting) as the closure updates each item's caches
-            intrinsic_row_contribution_changed =
+            rerun_row_sizing =
                 items.iter_mut().filter(|item| item.crosses_intrinsic_row).fold(false, |any_changed, item| {
                     let grid_area_size = item.grid_area_size(
                         AbstractAxis::Block,
@@ -513,7 +511,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
                     any_changed | has_changed
                 });
-            rerun_row_sizing = intrinsic_row_contribution_changed;
         } else {
             items.iter_mut().for_each(|item| {
                 // Clear intrinsic height caches
@@ -544,31 +541,20 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         }
     }
 
-    if (intrinsic_column_contribution_changed && !has_percentage_column)
-        || (intrinsic_row_contribution_changed && !has_percentage_row)
-    {
+    // Update the container's width if column sizing was re-run with changed intrinsic contributions.
+    //
+    // Note: the container's height is deliberately NOT updated if row sizing was re-run. Browsers size an auto-height
+    // grid container using the row sizes from the first row sizing pass (which is also what is returned above when
+    // run_mode is RunMode::ComputeSize), even if re-running row sizing then causes the rows to overflow the container.
+    if intrinsic_column_contribution_changed && !has_percentage_column {
         let final_column_sum = columns.iter().map(|track| track.base_size).sum::<f32>();
-        let final_row_sum = rows.iter().map(|track| track.base_size).sum::<f32>();
-
-        if intrinsic_column_contribution_changed && !has_percentage_column {
-            container_border_box.width = resolved_style_size
-                .get(AbstractAxis::Inline)
-                .unwrap_or_else(|| final_column_sum + content_box_inset.horizontal_axis_sum())
-                .maybe_clamp(min_size.width, max_size.width)
-                .max(padding_border_size.width);
-            container_content_box.width =
-                f32_max(0.0, container_border_box.width - content_box_inset.horizontal_axis_sum());
-        }
-
-        if intrinsic_row_contribution_changed && !has_percentage_row {
-            container_border_box.height = resolved_style_size
-                .get(AbstractAxis::Block)
-                .unwrap_or_else(|| final_row_sum + content_box_inset.vertical_axis_sum())
-                .maybe_clamp(min_size.height, max_size.height)
-                .max(padding_border_size.height);
-            container_content_box.height =
-                f32_max(0.0, container_border_box.height - content_box_inset.vertical_axis_sum());
-        }
+        container_border_box.width = resolved_style_size
+            .get(AbstractAxis::Inline)
+            .unwrap_or_else(|| final_column_sum + content_box_inset.horizontal_axis_sum())
+            .maybe_clamp(min_size.width, max_size.width)
+            .max(padding_border_size.width);
+        container_content_box.width =
+            f32_max(0.0, container_border_box.width - content_box_inset.horizontal_axis_sum());
     }
 
     // If only the container's size has been requested
