@@ -447,6 +447,36 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "calc")]
+    fn explicit_grid_sizing_auto_fit_calc_minimum() {
+        use RepetitionCount::AutoFit;
+        // repeat(auto-fit, minmax(calc(...), 1fr)) is valid: a calc() minimum is a fixed sizing function
+        let calc_handle = 0x100 as *const ();
+        let grid_style: Style<DefaultCheapStr> = Style {
+            display: Display::Grid,
+            size: Size { width: length(400.0), height: auto() },
+            grid_template_columns: vec![repeat(
+                AutoFit,
+                vec![minmax(MinTrackSizingFunction::calc(calc_handle), fr(1.0))],
+            )],
+            ..Default::default()
+        };
+        let preferred_size = grid_style.size.map(|s| s.into_option());
+        let (auto_col_reps, col_count) = compute_explicit_grid_size_in_axis(
+            &grid_style,
+            preferred_size.get_abs(AbsoluteAxis::Horizontal),
+            AutoRepeatStrategy::MaxRepetitionsThatDoNotOverflow,
+            |handle, basis| {
+                assert_eq!(handle, calc_handle);
+                basis / 4.0
+            },
+            AbsoluteAxis::Horizontal,
+        );
+        assert_eq!(col_count, 4);
+        assert_eq!(auto_col_reps, 4);
+    }
+
+    #[test]
     fn explicit_grid_sizing_auto_fill_min_size_exact_fit() {
         use RepetitionCount::AutoFill;
         let grid_style: Style<DefaultCheapStr> = Style {

@@ -1253,7 +1253,13 @@ impl TrackSizingFunction {
     }
     /// Determine whether at least one of the components ("min" and "max") are fixed sizing function
     pub fn has_fixed_component(&self) -> bool {
-        self.min.0.is_length_or_percentage() || self.max.0.is_length_or_percentage()
+        // calc() track sizes are always <length-percentage> values, so they are fixed sizing functions too
+        // https://www.w3.org/TR/css-grid-2/#fixed-sizing-function
+        #[cfg(feature = "calc")]
+        let is_fixed = |value: CompactLength| value.is_length_or_percentage() || value.is_calc();
+        #[cfg(not(feature = "calc"))]
+        let is_fixed = |value: CompactLength| value.is_length_or_percentage();
+        is_fixed(self.min.0) || is_fixed(self.max.0)
     }
 }
 impl TaffyAuto for TrackSizingFunction {
