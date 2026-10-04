@@ -209,6 +209,17 @@ use inner::CompactLengthInner;
 #[repr(transparent)]
 pub struct CompactLength(CompactLengthInner);
 
+// PROTOTYPE ONLY, NOT SOUND IN GENERAL: a `CompactLength` may hold a pointer to a `calc()` value owned by the
+// embedder, and nothing here checks that the pointee may be read from several threads. This is only correct if the
+// embedder's calc type is `Send + Sync` and its values outlive layout. Before the `parallel` feature ships, the calc
+// type must become a generic parameter with these impls conditional on it being `Send + Sync`.
+#[cfg(feature = "parallel")]
+#[allow(unsafe_code)]
+unsafe impl Send for CompactLength {}
+#[cfg(feature = "parallel")]
+#[allow(unsafe_code)]
+unsafe impl Sync for CompactLength {}
+
 impl CompactLength {
     /// The tag indicating a calc() value
     #[cfg(feature = "calc")]
