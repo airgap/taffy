@@ -18899,6 +18899,30 @@ mod grid {
 
     #[cfg(feature = "grid")]
     #[test]
+    fn grid_fr_item_preferred_size_clamped_by_max_size__border_box_ltr() {
+        crate::run_xml_test("grid", "grid_fr_item_preferred_size_clamped_by_max_size__border_box_ltr");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_fr_item_preferred_size_clamped_by_max_size__content_box_ltr() {
+        crate::run_xml_test("grid", "grid_fr_item_preferred_size_clamped_by_max_size__content_box_ltr");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_fr_item_preferred_size_clamped_by_max_size__border_box_rtl() {
+        crate::run_xml_test("grid", "grid_fr_item_preferred_size_clamped_by_max_size__border_box_rtl");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
+    fn grid_fr_item_preferred_size_clamped_by_max_size__content_box_rtl() {
+        crate::run_xml_test("grid", "grid_fr_item_preferred_size_clamped_by_max_size__content_box_rtl");
+    }
+
+    #[cfg(feature = "grid")]
+    #[test]
     fn grid_fr_no_sized_items_indefinite__border_box_ltr() {
         crate::run_xml_test("grid", "grid_fr_no_sized_items_indefinite__border_box_ltr");
     }
