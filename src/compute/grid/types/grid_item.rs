@@ -523,19 +523,28 @@ impl GridItem {
         let padding_border_size = (padding + border).sum_axes();
         let box_sizing_adjustment =
             if self.box_sizing == BoxSizing::ContentBox { padding_border_size } else { Size::ZERO };
+        let min_size = self
+            .min_size
+            .maybe_resolve(grid_area_size, |val, basis| tree.calc(val, basis))
+            .maybe_apply_aspect_ratio(self.aspect_ratio)
+            .maybe_add(box_sizing_adjustment)
+            .get(axis);
+        let max_size = self
+            .max_size
+            .maybe_resolve(grid_area_size, |val, basis| tree.calc(val, basis))
+            .maybe_apply_aspect_ratio(self.aspect_ratio)
+            .maybe_add(box_sizing_adjustment)
+            .get(axis);
         let size = self
             .size
             .maybe_resolve(grid_area_size, |val, basis| tree.calc(val, basis))
             .maybe_apply_aspect_ratio(self.aspect_ratio)
             .maybe_add(box_sizing_adjustment)
             .get(axis)
-            .or_else(|| {
-                self.min_size
-                    .maybe_resolve(grid_area_size, |val, basis| tree.calc(val, basis))
-                    .maybe_apply_aspect_ratio(self.aspect_ratio)
-                    .maybe_add(box_sizing_adjustment)
-                    .get(axis)
-            })
+            // A definite preferred size makes the minimum contribution the min-content contribution, which is the
+            // preferred size as clamped by the min and max sizes
+            .maybe_clamp(min_size, max_size)
+            .or(min_size)
             .or_else(|| self.overflow.get(axis).maybe_into_automatic_min_size())
             .unwrap_or_else(|| {
                 // Automatic minimum size. See https://www.w3.org/TR/css-grid-1/#min-size-auto

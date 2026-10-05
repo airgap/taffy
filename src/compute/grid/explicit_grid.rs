@@ -151,16 +151,19 @@ pub(crate) fn compute_explicit_grid_size_in_axis(
                 + per_repetition_track_used_space
                 + ((non_auto_repeating_track_count + repetition_track_count).saturating_sub(1) as f32 * gap_size);
 
+            // Track sizes such as calc((100% - 3rem) / 7) are meant to fill the container exactly, but f32 rounding can
+            // leave their sum a hair above or below it, which would gain or lose a whole repetition. Ignore differences
+            // smaller than this (Chrome's 1/64px layout units absorb them the same way).
+            const ROUNDING_TOLERANCE: f32 = 0.01;
+
             // If a single repetition already overflows the container then we return 1 as the repetition count
             // (the number of repetitions is floored at 1)
-            if first_repetition_and_non_repeating_tracks_used_space > inner_container_size {
+            if first_repetition_and_non_repeating_tracks_used_space > inner_container_size + ROUNDING_TOLERANCE {
                 1u16
             } else {
                 let per_repetition_gap_used_space = (repetition_track_count as f32) * gap_size;
                 let per_repetition_used_space = per_repetition_track_used_space + per_repetition_gap_used_space;
-                let num_repetition_that_fit = (inner_container_size
-                    - first_repetition_and_non_repeating_tracks_used_space)
-                    / per_repetition_used_space;
+                let free_space = inner_container_size - first_repetition_and_non_repeating_tracks_used_space;
 
                 // If the container size is a preferred or maximum size:
                 //   Then we return the maximum number of repetitions that fit into the container without overflowing.
@@ -169,8 +172,12 @@ pub(crate) fn compute_explicit_grid_size_in_axis(
                 //
                 // In all cases we add the additional repetition that was already accounted for in the special-case computation above
                 match auto_fit_strategy {
-                    AutoRepeatStrategy::MaxRepetitionsThatDoNotOverflow => (floor(num_repetition_that_fit) as u16) + 1,
-                    AutoRepeatStrategy::MinRepetitionsThatDoOverflow => (ceil(num_repetition_that_fit) as u16) + 1,
+                    AutoRepeatStrategy::MaxRepetitionsThatDoNotOverflow => {
+                        (floor((free_space + ROUNDING_TOLERANCE) / per_repetition_used_space) as u16) + 1
+                    }
+                    AutoRepeatStrategy::MinRepetitionsThatDoOverflow => {
+                        (ceil((free_space - ROUNDING_TOLERANCE) / per_repetition_used_space) as u16) + 1
+                    }
                 }
             }
         }
@@ -444,6 +451,64 @@ mod test {
         assert_eq!(row_count, 4);
         assert_eq!(auto_col_reps, 3);
         assert_eq!(auto_row_reps, 4);
+    }
+
+    #[test]
+    #[cfg(feature = "calc")]
+    fn explicit_grid_sizing_auto_fit_calc_minimum() {
+        use RepetitionCount::AutoFit;
+        // repeat(auto-fit, minmax(calc(...), 1fr)) is valid: a calc() minimum is a fixed sizing function
+        let calc_handle = 0x100 as *const ();
+        let grid_style: Style<DefaultCheapStr> = Style {
+            display: Display::Grid,
+            size: Size { width: length(400.0), height: auto() },
+            grid_template_columns: vec![repeat(
+                AutoFit,
+                vec![minmax(MinTrackSizingFunction::calc(calc_handle), fr(1.0))],
+            )],
+            ..Default::default()
+        };
+        let preferred_size = grid_style.size.map(|s| s.into_option());
+        let (auto_col_reps, col_count) = compute_explicit_grid_size_in_axis(
+            &grid_style,
+            preferred_size.get_abs(AbsoluteAxis::Horizontal),
+            AutoRepeatStrategy::MaxRepetitionsThatDoNotOverflow,
+            |handle, basis| {
+                assert_eq!(handle, calc_handle);
+                basis / 4.0
+            },
+            AbsoluteAxis::Horizontal,
+        );
+        assert_eq!(col_count, 4);
+        assert_eq!(auto_col_reps, 4);
+    }
+
+    #[test]
+    #[cfg(feature = "calc")]
+    fn explicit_grid_sizing_auto_fit_calc_exact_fit_rounding() {
+        use RepetitionCount::AutoFit;
+        // repeat(auto-fit, minmax(calc((100% - 48px) / 7), 1fr)) with an 8px gap fills a 422px container with exactly
+        // seven columns, but evaluating the calc in f32 makes the seven columns overflow by a fraction of a pixel
+        let grid_style: Style<DefaultCheapStr> = Style {
+            display: Display::Grid,
+            size: Size { width: length(422.0), height: auto() },
+            gap: Size { width: length(8.0), height: zero() },
+            grid_template_columns: vec![repeat(
+                AutoFit,
+                vec![minmax(MinTrackSizingFunction::calc(0x100 as *const ()), fr(1.0))],
+            )],
+            ..Default::default()
+        };
+        let preferred_size = grid_style.size.map(|s| s.into_option());
+        let (auto_col_reps, col_count) = compute_explicit_grid_size_in_axis(
+            &grid_style,
+            preferred_size.get_abs(AbsoluteAxis::Horizontal),
+            AutoRepeatStrategy::MaxRepetitionsThatDoNotOverflow,
+            |_, basis| basis * (1.0 / 7.0) - 48.0 / 7.0,
+            AbsoluteAxis::Horizontal,
+        );
+        assert_eq!(col_count, 7);
+        assert_eq!(auto_col_reps, 7);
     }
 
     #[test]
